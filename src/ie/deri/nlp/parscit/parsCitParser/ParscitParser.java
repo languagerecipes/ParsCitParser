@@ -26,14 +26,15 @@ import ie.pars.parscit.parser.objects.Paragraph;
 import ie.pars.parscit.parser.objects.Table;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.xml.parsers.*;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.w3c.dom.*;
+import org.xml.sax.ext.DefaultHandler2;
 
 
 /**
@@ -43,15 +44,19 @@ import org.w3c.dom.*;
 public class ParscitParser {
 
     private Paper currentPaper;
-    HashMap<String, Integer> dictionary;
+    TreeSet<String> dictionary;
     private int currentPage;
     private boolean isAbstract = false;
     private int sectionNumber;
     private int subSectionNumber;
 
-    public void init() {
+    public ParscitParser(TreeSet<String> dictionary) {
+        this.dictionary = dictionary;
+    }
+
+    private void init() {
         currentPaper = new Paper();
-        dictionary = new HashMap<String, Integer>();
+
         currentPage = 0;
         sectionNumber = 1;
         subSectionNumber = 1;
@@ -59,40 +64,44 @@ public class ParscitParser {
     }
 
     /**
-     * 
-     * @param filePath: the input text file for parscit logical sectioning and segmentation
+     *
+     * @param filePath: the input text file for parscit logical sectioning and
+     * segmentation
      * @param uid
-     * @return Paper Object  
+     * @return Paper Object
      */
-    public Paper parse(String filePath, String uid) {
+    public Paper parse(String filePath, String uid) throws Exception {
         init();
         File file = new File(filePath);
         currentPaper.setUid(uid);
         DocumentBuilder builder = null;
         Document doc = null;
+       
+        //     try {
+        builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+        builder.setEntityResolver(new DefaultHandler2());
+       
+        // BQ HERE
         try {
-            builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-            // BQ HERE
-            try {
-                doc = builder.parse(file);
-                NodeList algorithmNodes = doc.getElementsByTagName("algorithm");
-                currentPaper = parseParsHed(algorithmNodes.item(1), uid);
-                currentPaper.setReferenceList(parseParsCitResults(algorithmNodes.item(2)));
-                System.out.println("Paper: " + filePath + "/" + currentPaper.getTitle() + " | " + currentPaper.getUid());
-                List<Section> sectionList = parseSectLabel(algorithmNodes.item(0));
-                //System.err.println("Parse Sections Done!");
-                currentPaper.setSectionList(sectionList);
-            } catch (Exception ex) {
-                System.err.println(">>> Error while Parsing the ParsCitFile" + ex);
-            }
-        } catch (Exception ex) {
-            Logger.getLogger(ParscitParser.class.getName()).log(Level.SEVERE, null, ex);
+            doc = builder.parse(file);
+            NodeList algorithmNodes = doc.getElementsByTagName("algorithm");
+            currentPaper = parseParsHed(algorithmNodes.item(1), uid);
+            currentPaper.setReferenceList(parseParsCitResults(algorithmNodes.item(2)));
+            // System.out.println("Paper: " + filePath + "/" + currentPaper.getTitle() + " | " + currentPaper.getUid());
+            List<Section> sectionList = parseSectLabel(algorithmNodes.item(0));
+            //System.err.println("Parse Sections Done!");
+            currentPaper.setSectionList(sectionList);
+//            } catch (Exception ex) {
+//                System.err.println(">>> Error while Parsing the ParsCitFile" + ex);
+//            }
+        } catch (org.xml.sax.SAXParseException ex) {
+            System.err.println("Error while parsing xml");
+           //Logger.getLogger(ParscitParser.class.getName()).log(Level.SEVERE, null, ex);
 
         }
 
         // StyleTable Node
         return currentPaper;
-
 
     }
 
@@ -111,7 +120,6 @@ public class ParscitParser {
     private List<Section> parseSectLableVariant(Node variantSectLabelNode) {
         List<Section> sections = new ArrayList<Section>();
         NodeList paperNodeList = variantSectLabelNode.getChildNodes();
-        createPlainDictionary(paperNodeList);
 
         // list of sections
         List<List<Node>> nodeList = getSections(paperNodeList);
@@ -179,10 +187,10 @@ public class ParscitParser {
                 firstSection.addTable(tbl);
 
             } else if ("figure".equals(sectionNode.get(i).getNodeName())) {
-                 Figure fig = processFigure(sectionNode.get(i));
+                Figure fig = processFigure(sectionNode.get(i));
                 firstSection.addContent(fig);
             } else if ("title".equals(sectionNode.get(i).getNodeName())) {
-                 Table tbl = new Table();
+                Table tbl = new Table();
                 tbl.setTableCaption(sectionNode.get(i).getTextContent().trim());
                 tbl.setTablePageNumber(currentPage);
                 firstSection.addTable(tbl);
@@ -197,7 +205,7 @@ public class ParscitParser {
 
             } else if (!"#text".equals(sectionNode.get(i).getNodeName())) {
               //  System.err.println(">>> Unseen type of node processFirstSection>>> "
-                    //    + sectionNode.get(i).getNodeName());
+                //    + sectionNode.get(i).getNodeName());
             }
         }
 
@@ -214,10 +222,9 @@ public class ParscitParser {
         firstSection.setSectionPosition(1);
         firstSection.setEndPage(currentPage);
 
-
         subSectionNumber = 1;
         for (int i = 1; i < subSections.size(); i++) {
-            System.err.println("Sub section in opening section");
+            //System.err.println("Sub section in opening section");
             Section subSection = getSubSectionContentList(subSections.get(i));
             firstSection.addContent(subSection);
         }
@@ -249,72 +256,50 @@ public class ParscitParser {
             double newLineThreshold = 0;
             String currentParagraphText = "";
             for (int i = 0; i < lines.length; i++) {
-                sum += lines[i].length();
-                avgLineLength = sum / (i + 1);
-                newLineThreshold = avgLineLength - (lines[i].length() * .1);
+                //sum += lines[i].length();
+                //avgLineLength = sum / (i + 1);
+                //newLineThreshold = avgLineLength - (lines[i].length() * .1);
                 if (lines.length > i + 1 && lines[i].endsWith("-")) {
-                    String reverseCurrentLine = new StringBuffer(lines[i]).reverse().toString();
-                    String[] tempRevers = reverseCurrentLine.split(" ", 2);
-                    String lastWordOfCurrentLine = new StringBuffer(tempRevers[0]).reverse().toString();
-                    String remainingOfCurrentLine = new StringBuffer(tempRevers[1]).reverse().toString();
-                    String[] nextLinetokens = lines[i + 1].split(" ", 2);
-                    String newWord1 = lastWordOfCurrentLine + nextLinetokens[0];
-                    String newWord2 = lastWordOfCurrentLine.substring(0, lastWordOfCurrentLine.length() - 1) + nextLinetokens[0];
-                    if (dictionary.containsKey(newWord1)) {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord1 + " " + nextLinetokens[1];
-                    } else if (dictionary.containsKey(newWord2)) {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord2 + " " + nextLinetokens[1];
-                    } else if ("based".equalsIgnoreCase(nextLinetokens[0])
-                            || "driven".equalsIgnoreCase(nextLinetokens[0])) {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord1 + " " + nextLinetokens[1];
-                    } else if (Character.isUpperCase(nextLinetokens[0].charAt(0))) {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord1 + " " + nextLinetokens[1];
-                    } else {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord2 + " " + nextLinetokens[1];
-                    }
-                    currentParagraphText += " ";
-                    currentParagraphText += lines[i];
-                } else if (lines.length > i + 1 && lines[i].endsWith(".")) {
-                    if (lines[i].length() < newLineThreshold) {
-                        currentParagraphText += " ";
-                        currentParagraphText += lines[i];
-                        currentParagraph.setParagraphText(currentParagraphText);
-                        currentParagraph.setPosition(paragraphList.size() + 1);
+                    String[] split = lines[i + 1].split(" ");
+                    // if there is any token in the next line
+                    if (split.length > 0) {
+                        //try to see if we can attach the two tokens
+                        String[] tokens = lines[i].split(" ");
+                        String preTok = tokens[tokens.length - 1];
+                        preTok = preTok.substring(0, preTok.length() - 1);
+                        if (dictionary.contains(preTok + split[0])) {
 
-                        paragraphList.add(currentParagraph);
-                        currentParagraph = new Paragraph();
-                        currentParagraphText = "";
-                        //here the logic for new paragraph
-                    } else {
-                        currentParagraphText += " ";
-                        currentParagraphText += lines[i];
+                            int sfx = lines[i].lastIndexOf(" ");
+                            if (sfx < 0) {
+                                sfx = 0;
+                            }
+                            lines[i] = lines[i].substring(0, sfx) + " ";
+                            lines[i + 1] = preTok + lines[i + 1];
+                        }
+
                     }
-                } else {
-                    currentParagraphText += " ";
-                    currentParagraphText += lines[i];
+
                 }
+
+                currentParagraphText += " ";
+                currentParagraphText += lines[i];
             }
             currentParagraph.setParagraphText(currentParagraphText);
             currentParagraph.setPosition(paragraphList.size() + 1);
             paragraphList.add(currentParagraph);
-           // System.err.println("Done Processing Abstract");
+            // System.err.println("Done Processing Abstract");
             return paragraphList;
         }
     }
 
     /**
-     * The method get a list of nodes and generates a list of list
-     * where the inner list is the content
-     * for a section, note that reference section will be filtered
-     * maybe a bit of change to accept txt files with more than one paper, I should try the journals
-     * in the ACL corpus
+     * The method get a list of nodes and generates a list of list where the
+     * inner list is the content for a section, note that reference section will
+     * be filtered maybe a bit of change to accept txt files with more than one
+     * paper, I should try the journals in the ACL corpus
+     *
      * @param contentNodeList
-     * @return List<List<Node>> 
+     * @return List<List<Node>>
      */
     private static List<List<Node>> getSections(NodeList contentNodeList) {
         List<List<Node>> newNodeList = new ArrayList<List<Node>>();
@@ -340,6 +325,7 @@ public class ParscitParser {
 
     /**
      * This is a speciall case
+     *
      * @param sectionNodeList
      * @return
      */
@@ -356,7 +342,7 @@ public class ParscitParser {
         // else there is no header
         if (sectionNodeList.size() > 0
                 && "sectionHeader".equals(
-                subSections.get(0).get(0).getNodeName())) {
+                        subSections.get(0).get(0).getNodeName())) {
             section.setTitle(subSections.get(0).get(0).getTextContent());
             NamedNodeMap sectionHeaderAttribute = subSections.get(0).get(0).getAttributes();
             Node genericHeader = sectionHeaderAttribute.getNamedItem("genericHeader");
@@ -376,7 +362,6 @@ public class ParscitParser {
         // process the main section node
         getSectionContentList(section, subSections.get(0));
 
-
         subSectionNumber = 1;
         for (int i = 1; i < subSections.size(); i++) {
             Section subSection = getSubSectionContentList(subSections.get(i));
@@ -390,6 +375,7 @@ public class ParscitParser {
 
     /**
      * the output for this should be a vector
+     *
      * @param sectionNode
      */
     private void getSectionContentList(Section section, List<Node> sectionNode) {
@@ -427,7 +413,6 @@ public class ParscitParser {
 
                 String constructText = sectionNode.get(i).getTextContent();
                 sectionTextContent += constructText;
-
 
             } else if ("footnote".equals(sectionNode.get(i).getNodeName())) {
             } else if ("email".equals(sectionNode.get(i).getNodeName())) {
@@ -539,27 +524,29 @@ public class ParscitParser {
     private Paper parseParsHed(Node parseHedNode, String uid) {
         List<Node> authorEmailAffliationList = new ArrayList<Node>();
         Paper paper = new Paper();
-        NodeList parsHeadNodeList = parseHedNode.getChildNodes();
-        for (int i = 0; i < parsHeadNodeList.getLength(); i++) {
-            if ("variant".equals(parsHeadNodeList.item(i).getNodeName())) {
-                NodeList variantNodeList =
-                        parsHeadNodeList.item(i).getChildNodes();
-                for (int j = 0; j < variantNodeList.getLength(); j++) {
-                    if ("title".equals(variantNodeList.item(j).getNodeName())) {
-                        paper.setTitle(variantNodeList.item(j).getTextContent());
-                    } else if ("author".equals(variantNodeList.item(j).getNodeName())) {
-                        authorEmailAffliationList.add(variantNodeList.item(j));
+        if (parseHedNode != null) {
+            NodeList parsHeadNodeList = parseHedNode.getChildNodes();
+            for (int i = 0; i < parsHeadNodeList.getLength(); i++) {
+                if ("variant".equals(parsHeadNodeList.item(i).getNodeName())) {
+                    NodeList variantNodeList
+                            = parsHeadNodeList.item(i).getChildNodes();
+                    for (int j = 0; j < variantNodeList.getLength(); j++) {
+                        if ("title".equals(variantNodeList.item(j).getNodeName())) {
+                            paper.setTitle(variantNodeList.item(j).getTextContent());
+                        } else if ("author".equals(variantNodeList.item(j).getNodeName())) {
+                            authorEmailAffliationList.add(variantNodeList.item(j));
 //                        Author author = processAuthorString(variantNodeList.item(j).getTextContent());
 //                        paper.addAuthor(author);
-                    } else if ("affiliation".equals(variantNodeList.item(j).getNodeName())) {
-                        authorEmailAffliationList.add(variantNodeList.item(j));
+                        } else if ("affiliation".equals(variantNodeList.item(j).getNodeName())) {
+                            authorEmailAffliationList.add(variantNodeList.item(j));
 //                        paper.addAffiliation(variantNodeList.item(j).getTextContent());
-                    } else if ("email".equals(variantNodeList.item(j).getNodeName())) {
-                        authorEmailAffliationList.add(variantNodeList.item(j));
+                        } else if ("email".equals(variantNodeList.item(j).getNodeName())) {
+                            authorEmailAffliationList.add(variantNodeList.item(j));
 //                        paper.addEmail(variantNodeList.item(j).getTextContent());
+                        }
                     }
+                    break;
                 }
-                break;
             }
         }
         List<Author> authorList = processListOfAuthorAffiliationEmail(authorEmailAffliationList);
@@ -570,14 +557,18 @@ public class ParscitParser {
     }
 
     private List<Reference> parseParsCitResults(Node parseCitNode) {
+
         List<Reference> references = new ArrayList<Reference>();
-        NodeList parsCitNodeList = parseCitNode.getChildNodes();
-        for (int i = 0; i < parsCitNodeList.getLength(); i++) {
-            if ("citationList".equals(parsCitNodeList.item(i).getNodeName())) {
-                references = parseCitationList(parsCitNodeList.item(i).getChildNodes());
+        if (parseCitNode != null && parseCitNode.hasChildNodes()) {
+            NodeList parsCitNodeList = parseCitNode.getChildNodes();
+            for (int i = 0; i < parsCitNodeList.getLength(); i++) {
+                if ("citationList".equals(parsCitNodeList.item(i).getNodeName())) {
+                    references = parseCitationList(parsCitNodeList.item(i).getChildNodes());
+                }
             }
         }
         return references;
+
     }
 
     private List<Reference> parseCitationList(NodeList citationList) {
@@ -649,25 +640,6 @@ public class ParscitParser {
         return reference;
     }
 
-    private void createPlainDictionary(NodeList allNodeList) {
-        for (int i = 0; i < allNodeList.getLength(); i++) {
-            if ("bodyText".equals(allNodeList.item(i).getNodeName())) {
-                String[] textToken = allNodeList.item(i).getTextContent().split("\\n| |\\(|\\)|\\.|\\,|\\?|\\/|\\:");
-                for (int j = 0; j < textToken.length; j++) {
-                    if (dictionary.containsKey(textToken[j])) {
-                        dictionary.put(textToken[j], dictionary.get(textToken[j]) + 1);
-                    } else {
-                        // this is first time we see this word, set value '1'
-                        dictionary.put(textToken[j], 1);
-                    }
-                }
-            }
-
-        }
-
-
-    }
-
     private List<Paragraph> getCleanSectionText(String sectionText) {
         List<Paragraph> paragraphList = new ArrayList<Paragraph>();
         if ("".equals(sectionText.trim())) {
@@ -684,74 +656,36 @@ public class ParscitParser {
             double newLineThreshold = 0;
             String currentParagraphText = "";
             for (int i = 0; i < lines.length; i++) {
-                sum += lines[i].length();
-                avgLineLength = sum / (i + 1);
-                newLineThreshold = avgLineLength + (lines[i].length() * .1);
-                // if this is not the end line and ends with - then
+                //sum += lines[i].length();
+                //avgLineLength = sum / (i + 1);
+                //newLineThreshold = avgLineLength - (lines[i].length() * .1);
                 if (lines.length > i + 1 && lines[i].endsWith("-")) {
-                    String reverseCurrentLine = new StringBuffer(lines[i]).reverse().toString();
-                    String[] tempReversN = reverseCurrentLine.split(" ", 2);
-                    String[] tempRevers = new String[2];
-                    if (tempReversN.length == 0) {
-                        tempRevers[0] = "";
-                        tempRevers[1] = "";
-                    } else if (tempReversN.length == 1) {
-                        tempRevers[0] = tempReversN[0];
-                        tempRevers[1] = "";
-                    } else {
-                        tempRevers[0] = tempReversN[0];
-                        tempRevers[1] = tempReversN[1];
+                    String[] split = lines[i + 1].split(" ");
+                    // if there is any token in the next line
+                    if (split.length > 0) {
+                        //try to see if we can attach the two tokens
+                        String[] tokens = lines[i].split(" ");
+                        String preTok = tokens[tokens.length - 1];
+                        preTok = preTok.substring(0, preTok.length() - 1);
+                        if (dictionary.contains(preTok + split[0])) {
+                            int spaceIdx = lines[i].lastIndexOf(" ");
+                            
+                            if (spaceIdx < 0) {
+                               
+                                  //System.out.println("\t"+ spaceIdx + " " + lines[i] + "  "+ lines[i+1]);
+                                spaceIdx = 0;
+                            }
+                            lines[i] = lines[i].substring(0, spaceIdx) + " ";
+                            lines[i + 1] = preTok + lines[i + 1];
+                           
+                        }
 
                     }
-                    String lastWordOfCurrentLine = new StringBuffer(tempRevers[0]).reverse().toString();
-                    String remainingOfCurrentLine = new StringBuffer(tempRevers[1]).reverse().toString();
-                    String[] nextLinetokens = lines[i + 1].split(" ", 2);
 
-                    String newWord1 = lastWordOfCurrentLine + nextLinetokens[0];
-                    String newWord2 = lastWordOfCurrentLine.substring(0, lastWordOfCurrentLine.length() - 1) + nextLinetokens[0];
-
-                    if (nextLinetokens.length < 2) {
-                        String tempCurtrent = nextLinetokens[0];
-                        nextLinetokens = new String[2];
-                        nextLinetokens[0] = tempCurtrent;
-                        nextLinetokens[0] = "";
-                    }
-                    if (dictionary.containsKey(newWord1)) {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord1 + " " + nextLinetokens[1];
-                    } else if (dictionary.containsKey(newWord2)) {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord2 + " " + nextLinetokens[1];
-                    } else if ("based".equalsIgnoreCase(nextLinetokens[0])
-                            || "driven".equalsIgnoreCase(nextLinetokens[0])) {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord1 + " " + nextLinetokens[1];
-                    } else if (!nextLinetokens[0].equals("") && Character.isUpperCase(nextLinetokens[0].charAt(0))) {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord1 + " " + nextLinetokens[1];
-                    } else {
-                        lines[i] = remainingOfCurrentLine;
-                        lines[i + 1] = newWord2 + " " + nextLinetokens[1];
-                    }
-                    currentParagraphText += " ";
-                    currentParagraphText += lines[i];
-                } else if (lines.length > i + 1 && lines[i].endsWith(".")) {
-                    if (lines[i].length() < newLineThreshold) {
-                        currentParagraphText += " ";
-                        currentParagraphText += lines[i];
-                        currentParagraph.setParagraphText(currentParagraphText);
-                        paragraphList.add(currentParagraph);
-                        currentParagraph = new Paragraph();
-                        currentParagraphText = "";
-                        //here the logic for new paragraph
-                    } else {
-                        currentParagraphText += " ";
-                        currentParagraphText += lines[i];
-                    }
-                } else {
-                    currentParagraphText += " ";
-                    currentParagraphText += lines[i];
                 }
+
+                currentParagraphText += " ";
+                currentParagraphText += lines[i];
             }
             currentParagraph.setParagraphText(currentParagraphText);
             paragraphList.add(currentParagraph);
@@ -799,7 +733,6 @@ public class ParscitParser {
         }
         return author;
 
-
     }
 
     private List<Author> processListOfAuthorAffiliationEmail(List<Node> authorEmailAffliationList) {
@@ -807,7 +740,6 @@ public class ParscitParser {
         List<String> authorNodeList = new ArrayList<String>();
         List<String> affiliationNodeList = new ArrayList<String>();
         List<String> emailNodeList = new ArrayList<String>();
-
 
         for (int i = 0; i < authorEmailAffliationList.size(); i++) {
             if ("author".equals(authorEmailAffliationList.get(i).getNodeName())) {
@@ -881,4 +813,3 @@ public class ParscitParser {
         return authorList;
     }
 }
-
