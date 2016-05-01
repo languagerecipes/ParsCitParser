@@ -16,12 +16,10 @@
  */
 package parscitparser;
 
-import edu.stanford.nlp.parser.lexparser.LexicalizedParser;
 import edu.stanford.nlp.process.Morphology;
 import edu.stanford.nlp.tagger.maxent.MaxentTagger;
 import ie.deri.nlp.parscit.parsCitParser.ParscitParser;
 import ie.deri.nlp.parscit.parsCitParser.SerializeContentVertical;
-import ie.pars.parscit.parser.objects.Author;
 import ie.pars.parscit.parser.objects.Paper;
 import java.io.BufferedReader;
 import java.io.File;

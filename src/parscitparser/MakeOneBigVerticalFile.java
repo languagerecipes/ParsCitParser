@@ -31,8 +31,8 @@ import java.util.TreeSet;
 public class MakeOneBigVerticalFile {
 
     public static void main(String[] sugar) throws IOException {
-       String sugari = "e:/parscit_processed";
-       String sugaro = "e:/aclarc2.vert";
+       String sugari = "e/parscit_processed";
+       String sugaro = "e/aclarc2.vert";
         PrintWriter pw = new PrintWriter(new FileWriter(new File(sugaro)));
         String inputPath = sugari;
         File folder = new File(inputPath);
